@@ -13,44 +13,83 @@ import { Toaster } from '@/components/ui/sonner';
 export default function Home() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // 加载预约数据
+  const loadAppointments = async () => {
+    try {
+      setLoading(true);
+      const data = await storage.getAppointments();
+      setAppointments(data);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+      toast.error('加载预约数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
-    setAppointments(storage.getAppointments());
+    loadAppointments();
+
+    // 订阅实时更新（如果使用 Supabase）
+    const unsubscribe = storage.subscribe((updatedAppointments) => {
+      setAppointments(updatedAppointments);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
-  const handleAddAppointment = (data: {
+  const handleAddAppointment = async (data: {
     name: string;
     phone: string;
     date: string;
     timeSlot: string;
     serviceType: '唇腺活检' | '术后拆线';
   }) => {
-    const newAppointment = storage.addAppointment({
-      ...data,
-      completed: false,
-    });
-    setAppointments(storage.getAppointments());
-    toast.success('预约成功！', {
-      description: `已为您预约 ${data.date} ${data.timeSlot} - ${data.serviceType}`,
-    });
-  };
-
-  const handleToggleComplete = (id: string) => {
-    const appointment = appointments.find((a) => a.id === id);
-    if (appointment) {
-      storage.updateAppointment(id, { completed: !appointment.completed });
-      setAppointments(storage.getAppointments());
-      toast.success(
-        appointment.completed ? '已标记为未完成' : '已标记为完成'
-      );
+    try {
+      await storage.addAppointment({
+        ...data,
+        completed: false,
+      });
+      await loadAppointments();
+      toast.success('预约成功！', {
+        description: `已为您预约 ${data.date} ${data.timeSlot} - ${data.serviceType}`,
+      });
+    } catch (error) {
+      console.error('Error adding appointment:', error);
+      toast.error('预约失败，请重试');
     }
   };
 
-  const handleDelete = (id: string) => {
-    storage.deleteAppointment(id);
-    setAppointments(storage.getAppointments());
-    toast.success('预约已删除');
+  const handleToggleComplete = async (id: string) => {
+    const appointment = appointments.find((a) => a.id === id);
+    if (appointment) {
+      try {
+        await storage.updateAppointment(id, { completed: !appointment.completed });
+        await loadAppointments();
+        toast.success(
+          appointment.completed ? '已标记为未完成' : '已标记为完成'
+        );
+      } catch (error) {
+        console.error('Error updating appointment:', error);
+        toast.error('更新失败，请重试');
+      }
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await storage.deleteAppointment(id);
+      await loadAppointments();
+      toast.success('预约已删除');
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      toast.error('删除失败，请重试');
+    }
   };
 
   if (!mounted) {
