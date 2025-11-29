@@ -12,14 +12,24 @@ export const storageSupabase = {
         .from(APPOINTMENTS_TABLE)
         .select('*')
         .order('date', { ascending: true })
-        .order('timeSlot', { ascending: true });
+        .order('time_slot', { ascending: true });
       
       if (error) {
         console.error('Error fetching appointments:', error);
         return [];
       }
       
-      return (data || []) as Appointment[];
+      // 转换字段名从 snake_case 到 camelCase
+      return (data || []).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        phone: item.phone,
+        date: item.date,
+        timeSlot: item.time_slot,
+        serviceType: item.service_type,
+        completed: item.completed,
+        createdAt: item.created_at,
+      })) as Appointment[];
     } catch (error) {
       console.error('Error fetching appointments:', error);
       return [];
@@ -32,14 +42,20 @@ export const storageSupabase = {
       throw new Error('Supabase is not configured');
     }
 
-    const newAppointment: Omit<Appointment, 'id'> = {
-      ...appointment,
-      createdAt: Date.now(),
+    // 转换字段名从 camelCase 到 snake_case
+    const dbAppointment = {
+      name: appointment.name,
+      phone: appointment.phone,
+      date: appointment.date,
+      time_slot: appointment.timeSlot,
+      service_type: appointment.serviceType,
+      completed: appointment.completed,
+      created_at: Date.now(),
     };
 
     const { data, error } = await supabase!
       .from(APPOINTMENTS_TABLE)
-      .insert([newAppointment])
+      .insert([dbAppointment])
       .select()
       .single();
 
@@ -48,7 +64,17 @@ export const storageSupabase = {
       throw error;
     }
 
-    return data as Appointment;
+    // 转换返回的数据
+    return {
+      id: data.id,
+      name: data.name,
+      phone: data.phone,
+      date: data.date,
+      timeSlot: data.time_slot,
+      serviceType: data.service_type,
+      completed: data.completed,
+      createdAt: data.created_at,
+    } as Appointment;
   },
 
   // 更新预约
@@ -57,9 +83,19 @@ export const storageSupabase = {
       throw new Error('Supabase is not configured');
     }
 
+    // 转换字段名从 camelCase 到 snake_case
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.date !== undefined) dbUpdates.date = updates.date;
+    if (updates.timeSlot !== undefined) dbUpdates.time_slot = updates.timeSlot;
+    if (updates.serviceType !== undefined) dbUpdates.service_type = updates.serviceType;
+    if (updates.completed !== undefined) dbUpdates.completed = updates.completed;
+    if (updates.createdAt !== undefined) dbUpdates.created_at = updates.createdAt;
+
     const { error } = await supabase!
       .from(APPOINTMENTS_TABLE)
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id);
 
     if (error) {
